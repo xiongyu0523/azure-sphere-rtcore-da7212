@@ -3,7 +3,7 @@
     {
       "environment": "AzureSphere",
 
-      "AzureSphereTargetApiSet": "3+Beta1909"
+      "AzureSphereTargetApiSet": "4+Beta2001"
     }
   ],
   "configurations": [
@@ -22,7 +22,7 @@
       "variables": [
         {
           "name": "CMAKE_TOOLCHAIN_FILE",
-          "value": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereRTCoreToolchain.cmake"
+          "value": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereRTCoreToolchainVFP.cmake"
         },
         {
           "name": "AZURE_SPHERE_TARGET_API_SET",
@@ -49,7 +49,7 @@
       "variables": [
         {
           "name": "CMAKE_TOOLCHAIN_FILE",
-          "value": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereRTCoreToolchain.cmake"
+          "value": "${env.AzureSphereDefaultSDKDir}CMakeFiles\\AzureSphereRTCoreToolchainVFP.cmake"
         },
         {
           "name": "AZURE_SPHERE_TARGET_API_SET",
