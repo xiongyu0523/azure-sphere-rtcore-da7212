@@ -59,20 +59,23 @@ static const da7212_register_value_t kInputRegisterSequence[kDA7212_Input_MAX][1
     },
     /* DA7212_Input_MIC1_An */
     {
-        {DIALOG7212_MIXIN_L_SELECT, 0x02},
-        {DIALOG7212_MIXIN_R_SELECT, 0x04},
-        {DIALOG7212_MIC_1_GAIN, 0x03},
-        {DIALOG7212_CP_CTRL, 0xFD},
-        {DIALOG7212_AUX_R_CTRL, 0x40},
-        {DIALOG7212_MICBIAS_CTRL, 0x19},
-        {DIALOG7212_MIC_1_CTRL, 0x84},
-        {DIALOG7212_MIC_2_CTRL, 0x04},
-        {DIALOG7212_MIXIN_L_CTRL, 0x88},
-        {DIALOG7212_MIXIN_R_CTRL, 0x88},
-        {DIALOG7212_ADC_L_CTRL, 0xA0},
-        {DIALOG7212_GAIN_RAMP_CTRL, 0x02},
-        {DIALOG7212_PC_COUNT, 0x02},
-        {DIALOG7212_CP_DELAY, 0x95},
+        {DIALOG7212_MIXIN_L_SELECT, 0x02},      // MIC1 route to L MINXIN
+        {DIALOG7212_MIXIN_R_SELECT, 0x04},      // MIC1 route to R MINXIN
+        {DIALOG7212_MIXIN_L_GAIN, 0x03},        // L MIXIN Gain = 0dB
+        {DIALOG7212_MIXIN_R_GAIN, 0x03},        // R MIXIN Gain = 0dB
+        {DIALOG7212_ADC_L_GAIN, 0x6F},          // L ADC Gain = 0dB
+        {DIALOG7212_ADC_R_GAIN, 0x6F},          // R ADC Gain = 0dB
+        {DIALOG7212_ADC_FILTERS1, 0x08},        // Voice HFP = 100Hz @ 16k SR
+        {DIALOG7212_MIC_1_GAIN, 0x01},          // MIC1 Gain = 0dB
+        {DIALOG7212_MIC_2_GAIN, 0x01},          // MIC2 Gain = 0dB
+        {DIALOG7212_MICBIAS_CTRL, 0x19},        // MIC2 Bias OFF, MIC1 Bias ON @ 2.2V
+        {DIALOG7212_MIC_1_CTRL, 0x84},          // MIC1 AMP Enable, Source = MIC1_P single-ended
+        {DIALOG7212_MIC_2_CTRL, 0x04},          // MIC2 AMP Disable
+        {DIALOG7212_MIXIN_L_CTRL, 0x88},        // L MIXIN Enable 
+        {DIALOG7212_MIXIN_R_CTRL, 0x40},        // R MIXIN Disable
+        {DIALOG7212_ADC_L_CTRL, 0xA0},          // L ADC Enable, Unmute, 
+        {DIALOG7212_ADC_R_CTRL, 0x40},          // R ADC Disable
+        {DIALOG7212_GAIN_RAMP_CTRL, 0x02},      // 1 second fade-in from zero to max
     },
     /* DA7212_Input_MIC2 */
     {
@@ -209,22 +212,6 @@ static const da7212_register_value_t kInitRegisterSequence[DA7212_INIT_SIZE] = {
     {
         DIALOG7212_DAC_R_GAIN,
         kDA7212_DACGainM6DB,
-    },
-    {
-        DIALOG7212_MIXIN_L_GAIN,
-        DIALOG7212_MIXIN_L_AMP_GAIN(0x03),
-    },
-    {
-        DIALOG7212_MIXIN_R_GAIN,
-        DIALOG7212_MIXIN_R_AMP_GAIN(0x03),
-    },
-    {
-        DIALOG7212_ADC_L_GAIN,
-        DIALOG7212_ADC_L_DIGITAL_GAIN(0x6F),
-    },
-    {
-        DIALOG7212_ADC_R_GAIN,
-        DIALOG7212_ADC_R_DIGITAL_GAIN(0x6F),
     }
 };
 
@@ -300,7 +287,8 @@ status_t DA7212_Init(da7212_handle_t *handle, da7212_config_t *codecConfig)
     /* Set DA7212 functionality */
     if (config->dacSource == kDA7212_DACSourceADC)
     {
-        DA7212_WriteRegister(handle, DIALOG7212_DIG_ROUTING_DAC, 0x10);
+        /* Left ADC to R and L DAC */
+        DA7212_WriteRegister(handle, DIALOG7212_DIG_ROUTING_DAC, 0x00);
     }
     else
     {

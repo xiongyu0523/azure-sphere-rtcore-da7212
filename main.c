@@ -35,17 +35,24 @@ static codec_config_t codecConfig = {
     .codecDevConfig = &da7212Config 
 };
 
-static uint16_t rdata[32 * 1024];
-static uint32_t rdataindex = 0;
+#define AUDIO_IN_BUF_SIZE (16000 * 2) // a ring buffer to hold last second of audio 
+static uint16_t AudioInRingBuffer[AUDIO_IN_BUF_SIZE / 2];
+static uint32_t AudioInRingBufferIndex = 0;
 
 static bool recvCallback(uint16_t* data, uintptr_t size)
 {
-    for (uint32_t i = 0; i < size; i++) {
-        rdata[i + rdataindex] = data[i];
-        rdataindex++; 
-        if (rdataindex >= 32 * 1024); {
-            rdataindex = 0;
+    if (AudioInRingBufferIndex + size <= AUDIO_IN_BUF_SIZE) {
+        memcpy(&AudioInRingBuffer[AudioInRingBufferIndex / 2], data, size);
+        AudioInRingBufferIndex += size;
+        if (AudioInRingBufferIndex >= AUDIO_IN_BUF_SIZE) {
+            AudioInRingBufferIndex = 0;
         }
+    } else {
+        uint32_t remain = AUDIO_IN_BUF_SIZE - AudioInRingBufferIndex;
+        uint32_t wrap = size - remain;
+        memcpy(&AudioInRingBuffer[AudioInRingBufferIndex / 2], data, remain);
+        memcpy(&AudioInRingBuffer[0], &data[remain], wrap);
+        AudioInRingBufferIndex = wrap;
     }
 
     return true;
@@ -58,30 +65,32 @@ static bool sendCallback(uint16_t* data, uintptr_t size)
 
     //if (!done) {
 
-    //    uint32_t len = size * sizeof(uint16_t);
-
-    //    memcpy(data, &music[index], len);
-    //    index += len;
-
-    //    if (index >= MUSIC_LEN) {
+    //    if (index + size < MUSIC_LEN) {
+    //        memcpy(data, &music[index], size);
+    //        index += size;
+    //    } else {
+    //        uint32_t remain = MUSIC_LEN - index;
+    //        memcpy(data, &music[index], remain);
+    //        memset(&data[remain / 2], 0x00, size - remain);
     //        done = true;
     //    }
 
     //    return true;
     //}
-    //else {
-    //    for (uint32_t i = 0; i < size; i++) {
-    //        data[i] = 0x0000;
-    //    }
 
-    //    return true;
-    //}
+    //return false;
+
+    uintptr_t chunk = (sizeof(int16_t) * 2);
+    if (size % chunk) {
+        while (1);
+        return false;
+    }
     
-    for (uint32_t i = 0; i < size; i+=2) {
+    for (uint32_t i = 0; i < size / 2; i += 2) {
         data[i] = 0x7619;
     }
 
-    for (uint32_t i = 1; i < size; i += 2) {
+    for (uint32_t i = 1; i < size / 2; i += 2) {
         data[i] = 0x0888;
     }
 
@@ -100,10 +109,8 @@ _Noreturn void RTCoreMain(void)
 
     I2S *i2sHndl = I2S_Open(MT3620_UNIT_I2S0, 16000000);
 
-    I2S_Input(i2sHndl, I2S_FORMAT_I2S, 2, 16, 16000, recvCallback);
-
+    I2S_Input(i2sHndl, I2S_FORMAT_I2S, 1, 16, 16000, recvCallback);
     I2S_Output(i2sHndl, I2S_FORMAT_I2S, 2, 16, 16000, sendCallback);
-
     CODEC_Init(&codecHandle, &codecConfig);
 
     for (;;) {
