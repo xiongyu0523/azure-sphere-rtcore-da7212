@@ -18,8 +18,6 @@
 #include "fsl_dialog7212.h"
 #include "fsl_codec_adapter.h"
 
-#include "music.h"
-
 #define GPIO_BUTTON_A   12
 #define GPIO_BUTTON_B   13
 #define GPIO_PLAY_R     45
