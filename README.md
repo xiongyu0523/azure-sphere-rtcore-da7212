@@ -1,6 +1,6 @@
 ﻿# Azure Sphere DA7212 I2S demo
 
-This sample demonstrates I2S audio capability on Azure Sphere rtcore. A DA7212 codec from Nordic is used with I2S driver from [Codethink MT3260 driver](https://github.com/CodethinkLabs/mt3620-m4-drivers) to demostrate a 16kHz voice recording and playback.
+This sample demonstrates I2S audio capability on Azure Sphere rtcore. A DA7212 codec from Nordic is used with I2S driver to demostrate a 16kHz voice recording and playback.
 
 ## To build and run the sample
 
