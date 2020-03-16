@@ -20,24 +20,29 @@
 
 #include "music.h"
 
-UART *debug;
-#define GPIO_BUTTON_A 12
-#define GPIO_BUTTON_B 13
-#define GPIO_PLAY_R 45
-#define GPIO_PLAY_G 46
-#define GPIO_PLAY_B 47
-
+#define GPIO_BUTTON_A   12
+#define GPIO_BUTTON_B   13
+#define GPIO_PLAY_R     45
+#define GPIO_PLAY_G     46
+#define GPIO_PLAY_B     47
 #define RED_ON()        GPIO_Write(GPIO_PLAY_R, 0)
 #define RED_OFF()       GPIO_Write(GPIO_PLAY_R, 1)
 #define GREEN_ON()      GPIO_Write(GPIO_PLAY_G, 0)
 #define GREEN_OFF()     GPIO_Write(GPIO_PLAY_G, 1)
 #define BLUE_ON()       GPIO_Write(GPIO_PLAY_B, 0)
 #define BLUE_OFF()      GPIO_Write(GPIO_PLAY_B, 1)
+#define AUDIO_BUF_SAMPLE (5 * 16000) // audio buffer to hold last 5 seconds of microphone input 
 
-bool startRecord = false;
-bool startPlay = false;
+static bool startRecord = false;
+static bool startPlay = false;
+
+static uint16_t AudioBuffer[AUDIO_BUF_SAMPLE];
+static uint32_t AudioBufferIndex = 0;
+
+//bool start = false;
 
 static codec_handle_t codecHandle;
+
 static da7212_config_t da7212Config = {
     .i2cConfig = {.codecI2CInstance = MT3620_UNIT_ISU2, .codecI2CSourceClock = 0},
     .dacSource = kDA7212_DACSourceInputStream,
@@ -46,33 +51,32 @@ static da7212_config_t da7212Config = {
     .format = {.mclk_HZ = 16000000U, .sampleRate = 16000, .bitWidth = 16},
     .isMaster = true,
 };
+
 static codec_config_t codecConfig = { 
     .codecDevType = kCODEC_DA7212, 
     .codecDevConfig = &da7212Config 
 };
 
-#define AUDIO_IN_BUF_SIZE (5 * 16000 * 2) // a ring buffer to hold last 5 second of audio 
-static uint16_t AudioInRingBuffer[AUDIO_IN_BUF_SIZE / 2];
-static uint32_t AudioInRingBufferIndex = 0;
-
 static bool recvCallback(uint16_t* data, uintptr_t size)
 {
-    bool state = false;
+    bool isRecordDone = false;
+    uint32_t sample2recv = size / 2;
 
     if (startRecord) {
-        if (AudioInRingBufferIndex + size <= AUDIO_IN_BUF_SIZE) {
-            memcpy(&AudioInRingBuffer[AudioInRingBufferIndex / 2], data, size);
-            AudioInRingBufferIndex += size;
-            if (AudioInRingBufferIndex >= AUDIO_IN_BUF_SIZE) {
-                AudioInRingBufferIndex = 0;
-                startRecord = false;
-                RED_OFF();
-                GREEN_ON();
+        if (AudioBufferIndex + sample2recv <= AUDIO_BUF_SAMPLE) {
+            memcpy(&AudioBuffer[AudioBufferIndex], data, sample2recv * 2);
+            AudioBufferIndex += sample2recv;
+            if (AudioBufferIndex == AUDIO_BUF_SAMPLE) {
+                isRecordDone = true;
             }
         } else {
-            uint32_t remain = AUDIO_IN_BUF_SIZE - AudioInRingBufferIndex;
-            memcpy(&AudioInRingBuffer[AudioInRingBufferIndex / 2], data, remain);
-            AudioInRingBufferIndex = 0;
+            uint32_t freeSample = AUDIO_BUF_SAMPLE - AudioBufferIndex;
+            memcpy(&AudioBuffer[AudioBufferIndex], data, freeSample * 2);
+            isRecordDone = true;
+        }
+
+        if (isRecordDone) {
+            AudioBufferIndex = 0;
             startRecord = false;
             RED_OFF();
             GREEN_ON();
@@ -84,68 +88,38 @@ static bool recvCallback(uint16_t* data, uintptr_t size)
 
 static bool sendCallback(uint16_t* data, uintptr_t size)
 {
-    //static uint32_t index = 0;
-    //static bool done = false;
-
-    //if (!done) {
-
-    //    if (index + size < MUSIC_LEN) {
-    //        memcpy(data, &music[index], size);
-    //        index += size;
-    //    } else {
-    //        uint32_t remain = MUSIC_LEN - index;
-    //        memcpy(data, &music[index], remain);
-    //        memset(&data[remain / 2], 0x00, size - remain);
-    //        done = true;
-    //    }
-
-    //    return true;
-    //}
-
-    //return false;
-
-    //uintptr_t chunk = (sizeof(int16_t) * 2);
-    //if (size % chunk) {
-    //    while (1);
-    //    return false;
-    //}
-    //
-    //for (uint32_t i = 0; i < size / 2; i += 2) {
-    //    data[i] = 0x7619;
-    //}
-
-    //for (uint32_t i = 1; i < size / 2; i += 2) {
-    //    data[i] = 0x0888;
-    //}
-
-    //return true;
+    bool isPlayDone = false;
+    uint32_t sample2send = size / 2 / 2;
 
     if (startPlay) {
 
-        if (AudioInRingBufferIndex + (size / 2) <= AUDIO_IN_BUF_SIZE) {
+        if (AudioBufferIndex + sample2send <= AUDIO_BUF_SAMPLE) {
 
-            for (uint32_t i = 0; i < (size / 2); i += 2) {
-                data[i] = AudioInRingBuffer[AudioInRingBufferIndex / 2 + i / 2];
-                data[i + 1] = AudioInRingBuffer[AudioInRingBufferIndex / 2 + i / 2];
+            for (uint32_t i = 0; i < sample2send; i++) {
+                data[2 * i] = AudioBuffer[AudioBufferIndex + i];
+                data[2 * i + 1] = AudioBuffer[AudioBufferIndex + i];
             }
 
-            AudioInRingBufferIndex += size / 2;
-            if (AudioInRingBufferIndex >= AUDIO_IN_BUF_SIZE) {
-                AudioInRingBufferIndex = 0;
-                startPlay = false;
-                BLUE_OFF();
+            AudioBufferIndex += sample2send;
+            if (AudioBufferIndex == AUDIO_BUF_SAMPLE) {
+                isPlayDone = true;
             }
         } else {
-            uint32_t remain = AUDIO_IN_BUF_SIZE - AudioInRingBufferIndex;
 
-            for (uint32_t i = 0; i < (remain / 2); i += 2) {
-                data[i] = AudioInRingBuffer[AudioInRingBufferIndex / 2 + i / 2];
-                data[i + 1] = AudioInRingBuffer[AudioInRingBufferIndex / 2 + i / 2];
+            uint32_t restSample = AUDIO_BUF_SAMPLE - AudioBufferIndex;
+
+            for (uint32_t i = 0; i < restSample; i++) {
+                data[2 * i] = AudioBuffer[AudioBufferIndex + i];
+                data[2 * i + 1] = AudioBuffer[AudioBufferIndex + i];
             }
 
-            memset(&data[remain / 2], 0x00, size - remain);
+            memset(&data[2 * restSample], 0, size - 2 * restSample);
+            isPlayDone = true;
+        }
+
+        if (isPlayDone) {
+            AudioBufferIndex = 0;
             startPlay = false;
-            AudioInRingBufferIndex = 0;
             BLUE_OFF();
         }
     } else {
@@ -155,12 +129,10 @@ static bool sendCallback(uint16_t* data, uintptr_t size)
     return true;    
 }
 
-// helper for debug
-bool start = false;
-
 _Noreturn void RTCoreMain(void)
 {
-    bool gpiostate = false;
+    bool gpiostate;
+
     //while (start == false);
 
     VectorTableInit();
@@ -185,16 +157,20 @@ _Noreturn void RTCoreMain(void)
         // Press button A to start recording for 5 seconds
         GPIO_Read(GPIO_BUTTON_A, &gpiostate);
         if (!gpiostate) {
-            startRecord = true;
-            RED_ON();
+            if (!startRecord && !startPlay) {
+                startRecord = true;
+                RED_ON();
+            }
         }
 
         // Press Button B to replay recorded voice
         GPIO_Read(GPIO_BUTTON_B, &gpiostate);
         if (!gpiostate) {
-            startPlay = true;
-            GREEN_OFF();
-            BLUE_ON();
+            if (!startRecord && !startPlay) {
+                startPlay = true;
+                GREEN_OFF();
+                BLUE_ON();
+            }
         }
     }
 }

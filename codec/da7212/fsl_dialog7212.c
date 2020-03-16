@@ -116,7 +116,7 @@ static const da7212_register_value_t kOutputRegisterSequence[kDA7212_Output_MAX]
 static const da7212_register_value_t kInitRegisterSequence[DA7212_INIT_SIZE] = {
     {
         DIALOG7212_DIG_ROUTING_DAI,
-        0x10,
+        DIALOG7212_DIG_ROUTING_DAI_R_SRC_ADC_RIGHT | DIALOG7212_DIG_ROUTING_DAI_L_SRC_ADC_LEFT,
     },
     {
         DIALOG7212_SR,
@@ -144,7 +144,7 @@ static const da7212_register_value_t kInitRegisterSequence[DA7212_INIT_SIZE] = {
     },
     {
         DIALOG7212_DAI_CLK_MODE,
-        (DIALOG7212_DAI_BCLKS_PER_WCLK_BCLK64),
+        DIALOG7212_DAI_BCLKS_PER_WCLK_BCLK32 | DIALOG7212_DAI_CLK_EN_MASK,
     },
     {
         DIALOG7212_DAI_CTRL,
@@ -233,9 +233,7 @@ status_t DA7212_ReadRegister(da7212_handle_t *handle, uint8_t u8Register, uint8_
     assert(handle->config);
     assert(handle->config->slaveAddress != 0U);
 
-    return CODEC_I2C_Receive(handle->i2cHandle, handle->config->slaveAddress, u8Register, 1U,
-                             (uint8_t *)pu8RegisterData, 1U);
-    ;
+    return CODEC_I2C_Receive(handle->i2cHandle, handle->config->slaveAddress, u8Register, 1U, (uint8_t *)pu8RegisterData, 1U);
 }
 
 status_t DA7212_ModifyRegister(da7212_handle_t *handle, uint8_t reg, uint8_t mask, uint8_t value)
@@ -271,6 +269,13 @@ status_t DA7212_Init(da7212_handle_t *handle, da7212_config_t *codecConfig)
         return kStatus_Fail;
     }
 
+    /* reset codec registers */
+    DA7212_WriteRegister(handle, DIALOG7212_CIF_CTRL, DIALOG7212_CIF_CTRL_CIF_REG_SOFT_RESET_MASK);
+
+    for (volatile uint32_t i = 0; i < 100000; i++) {
+        ;
+    }
+
     /* If no config structure, use default settings */
     for (i = 0; i < DA7212_INIT_SIZE; i++)
     {
@@ -278,8 +283,7 @@ status_t DA7212_Init(da7212_handle_t *handle, da7212_config_t *codecConfig)
     }
 
     /* Set to be master or slave */
-    DA7212_WriteRegister(handle, DIALOG7212_DAI_CLK_MODE,
-                         (DIALOG7212_DAI_BCLKS_PER_WCLK_BCLK32 | (config->isMaster << 7U)));
+    DA7212_WriteRegister(handle, DIALOG7212_DAI_CLK_MODE, DIALOG7212_DAI_BCLKS_PER_WCLK_BCLK32 | (config->isMaster << 7U));
 
     /* Set the audio protocol */
     DA7212_WriteRegister(handle, DIALOG7212_DAI_CTRL, (DIALOG7212_DAI_EN_MASK | config->protocol));
